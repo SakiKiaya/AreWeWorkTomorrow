@@ -13,6 +13,7 @@
   - 因為改完程式後發現沒有放假，所以下次更新的時間應該是下次颱風來之前
 
 # Use
-  1. 請使用腳本管理器(Tampermonkey or Violentmonkey)載入此腳本
-  2. 進入行政院網站
+  1. 請先安裝腳本管理器(Tampermonkey or Violentmonkey)
+  2. 點選 AreWeWorkTommow.user.js > Raw 即可自動載入腳本
+  3. 進入行政院網站
       https://www.dgpa.gov.tw/typh/daily/nds.html
