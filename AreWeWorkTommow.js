@@ -8,12 +8,24 @@
 // @grant        none
 // ==/UserScript==
 
-var selMessage = document.querySelector("#Table > tbody.Table_Body > tr:nth-child(7) > td:nth-child(2) > font:nth-child(3)");
+var selNode = document.querySelector("#Table > tbody.Table_Body > tr:nth-child(7)");
+var selCounty= selNode.firstChild.innerText;
+var selMessage = "";
 
-if(selMessage != null){
-    alert(selMessage.innerText);
-}else
-{
-    console.log("Not yet");
+if(selNode != null){
+    selMessage = selNode.lastChild.lastChild.innerText;
+    if(selMessage.search("明天") != -1){
+        console.log(selMessage);
+        if(selMessage.search("照常") == -1){
+            console.log(selMessage);
+            alert(selCounty + " " + selMessage);
+        }else{
+            console.log(selMessage);
+            alert(selCounty + " 請乖乖上班, 上課");
+        }
+    }
+    else{
+        console.log(selCounty + " Not yet");
+    }
 }
 setTimeout(function(){ location.reload(); }, 20*1000);
