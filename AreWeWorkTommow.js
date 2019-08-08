@@ -4,7 +4,7 @@
 // @version      0.1
 // @description  Auto reload in 20 second
 // @author       SakiKiaya
-// @match        https://www.dgpa.gov.tw/typh/daily/nds.html?uid=31
+// @match        https://www.dgpa.gov.tw/typh/daily/nds.html*
 // @grant        none
 // ==/UserScript==
 
