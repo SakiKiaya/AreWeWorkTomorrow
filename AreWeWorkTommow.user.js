@@ -1,31 +1,366 @@
 // ==UserScript==
 // @name         Work
 // @namespace    http://tampermonkey.net/
-// @version      0.1
-// @description  Auto reload in 20 second
+// @version      1.0
+// @description  Check the status, and auto reload in 20 second
 // @author       SakiKiaya
-// @match        https://www.dgpa.gov.tw/typh/daily/nds.html*
-// @grant        none
+// @match        http*://www.dgpa.gov.tw/typh/daily/nds.html*
+// @require      http://code.jquery.com/jquery-3.4.1.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js
 // ==/UserScript==
 
-var selNode = document.querySelector("#Table > tbody.Table_Body > tr:nth-child(7)");
-var selCounty= selNode.firstChild.innerText;
-var selMessage = "";
+var nReloadTime = 60;
+var nTime = nReloadTime;
 
-if(selNode != null){
-    selMessage = selNode.lastChild.lastChild.innerText;
-    if(selMessage.search("明天") != -1){
-        console.log(selMessage);
-        if(selMessage.search("照常") == -1){
-            console.log(selMessage);
-            alert(selCounty + " " + selMessage);
-        }else{
-            console.log(selMessage);
-            alert(selCounty + " 請乖乖上班, 上課");
-        }
+// Var for Select
+var selTable;
+var selNode;
+var selCounty;
+var selMessage;
+var selRows;
+
+// Var for County List
+var listCounty = ['臺北市', '新北市', '桃園市', '臺中市', '臺南市', '高雄市',
+                 '新竹縣', '苗栗縣', '彰化縣', '南投縣', '雲林縣', '嘉義縣',
+                 '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣', '澎湖縣', '金門縣',
+                 '連江縣', '基隆市', '新竹市', '嘉義市'];
+var listCountyOnTable;
+var strListOption;
+var strOption;
+var strOptionHead = "<option value=";
+var strOptionTail = "</option>\n";
+
+// Var for Cookie
+var WorkID = 0;
+var WorkValue = '臺北市';
+
+function AddCSS()
+{
+    var styles = `
+    .alert {display: none; position: fixed;top: 50%;left: 50%;min-width: 300px;max-width: 600px;transform: translate(-50%,-50%);z-index: 99999;font-size: 3rem;text-align: center;padding: 15px;border-radius: 3px;}
+    .alert-success {color: #fff;background-color: #198754;border-color: #198754;}
+    .alert-warning {color: #8a6d3b;background-color: #fcf8e3;border-color: #faebcc;}
+    .btn-success:hover {color: #fff;background-color: #157347;border-color: #146c43;}
+
+    .btn {display: inline-block;font-weight: 400;line-height: 1.5;color: #212529;text-align: center;text-decoration: none;vertical-align: middle;cursor: pointer;-webkit-user-select: none;-moz-user-select: none;user-select: none;background-color: transparent;border: 1px solid transparent;padding: .375rem .75rem;font-size: 1rem;border-radius: .25rem;transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;}
+    .btn:hover {color: #212529;}
+    .btn-success {color: #fff;background-color: #198754;border-color: #198754;}
+    .btn-success:hover {color: #fff;background-color: #157347;border-color: #146c43;}
+
+    .form-select {display: inline-block;padding: .375rem 2.25rem .375rem .75rem;-moz-padding-start: calc(0.75rem - 3px);font-size: 1rem;font-weight: 400;line-height: 1.5;color: #212529;background-color: #fff;background-image: url(data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e);background-repeat: no-repeat;background-position: right .75rem center;background-size: 16px 12px;border: 1px solid #ced4da;border-radius: .25rem;transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;-webkit-appearance: none;-moz-appearance: none;appearance: none;}
+    .form-select-sm {padding-top: .25rem;padding-bottom: .25rem;padding-left: .5rem;font-size: .875rem;}
+    `;
+
+    var styleSheet = document.createElement("style")
+    styleSheet.type = "text/css"
+    styleSheet.innerText = styles
+    document.head.appendChild(styleSheet)
+};
+
+function delay(s)
+{
+    return new Promise(function(resolve,reject)
+    {
+        setTimeout(resolve,s);
+    });
+};
+
+function sleep(milliseconds) {
+  var start = new Date().getTime();
+  for (var i = 0; i < 1e7; i++) {
+    if ((new Date().getTime() - start) > milliseconds){
+      break;
     }
-    else{
-        console.log(selCounty + " Not yet");
+  }
+};
+
+async function fadeOut(item)
+{
+    for(var i = 1.0; i > 0; i -= 0.1)
+    {
+        await delay(50);//100mS
+        item.style.opacity = i;
+    }
+};
+
+var prompt = async function(message, style, time)
+{
+    var objMainDiv;
+    style = (style === undefined) ? 'alert-success' : style;
+    time = (time === undefined) ? 1200 : time;
+
+    // Select alert Div
+    objMainDiv = document.querySelector("#short_url_alert");
+
+    // Setting Message
+    objMainDiv.innerHTML = message;
+
+    // Show Div
+    objMainDiv.className = 'alert ' + style;
+    objMainDiv.style.display = "block";
+
+    // Delay and fadeout
+    await delay(time);
+    await fadeOut(objMainDiv);
+    objMainDiv.style = "";
+};
+
+var success_prompt = function(message, time)
+{
+    prompt(message, 'alert-success', time);
+};
+
+var warning_prompt = function(message, time)
+{
+    prompt(message, 'alert-warning', time);
+}
+
+
+var rmNotNeed = function(str)
+{
+    // remove new line sand space
+    str = str.replace(/\r\n|\n|\s+/g, "");
+    return str;
+};
+
+function GetKeyword(obj)
+{
+    if (obj === undefined){
+        return null;
+    } else{
+        return obj == null? null : obj.innerText;
+    }
+};
+
+function FindObjByKeyword(obj, value)
+{
+   var list = document.querySelectorAll(obj), i;
+   var sItem = "", nMatchIndex=-1;
+   for (i = 0; i < list.length; ++i) {
+       if (GetKeyword(list[i]) == null) continue;
+       sItem = GetKeyword(list[i]);
+       console.log(list[i]);
+       if (sItem.match(value))
+       {
+           console.log("[Match] " + list[i]);
+           nMatchIndex = i;
+       }
+   }
+   return nMatchIndex == -1 ? null: list[nMatchIndex];
+};
+
+function genSelectItem(element, index)
+{
+    return strOptionHead + "'" + index + "'>" + element + strOptionTail;
+};
+
+function genCountyList()
+{
+    var strCountyOptionList = "";
+    for (let i=0; i<listCounty.length; i++) {
+        strCountyOptionList += genSelectItem(listCounty[i], i);
+    };
+    console.log(strCountyOptionList);
+    return strCountyOptionList;
+};
+
+var getCountyList = function(selTable)
+{
+    var strCountyOptionList = "";
+    var strCounty;
+    selRows = selTable.rows;
+    for (var i = 1; i < selRows.length - 1; i++) {
+        if(rmNotNeed(selRows[i].firstElementChild.textContent).search("地區") != -1) {
+            strCounty = rmNotNeed(selRows[i].cells[1].textContent);
+        }
+        else {
+            strCounty = rmNotNeed(selRows[i].firstElementChild.textContent);
+        }
+        strCountyOptionList =
+                strCountyOptionList + strOptionHead + "'" + i + "'>" +
+                strCounty + strOptionTail;
+        console.log(strCounty);
+    }
+    console.log(strCountyOptionList);
+    return strCountyOptionList;
+};
+
+function addList(str, checkCookie)
+{
+    var selDiv = document.querySelector('#Content');
+
+    AddCSS();
+
+    // Add alert Div
+    if (document.querySelector("#short_url_alert") == null)
+    {
+        selDiv.insertAdjacentHTML('afterbegin', '<div id="short_url_alert" class="alert alert-success"></div>');
+    }
+
+    // Add button
+    if (document.querySelector("#btnSave") == null)
+    {
+        selDiv.insertAdjacentHTML('afterbegin', '<button name="btnSave" id ="btnSave" class="btn btn-success" "> 設定所在地區 </button></br>'); //style="position:absolute;left:74px;
+    }
+
+    // Add Selector
+    if (document.querySelector("#SelectCounty") == null)
+    {
+        selDiv.insertAdjacentHTML('afterbegin', '<select name="SelectCounty" id ="SelectCounty" class="form-select">' + str +'</select>'); //style="position:absolute;left:4px;">
+
+    }
+
+    // Add countdown Div
+    if (document.querySelector("#divCountDown") == null)
+    {
+        selDiv.insertAdjacentHTML('afterbegin', '<div id="divCountDown" class="alert-success">倒數: 秒後重新整理</div>');
+    }
+
+    var selSelector = document.querySelector('#SelectCounty');
+    var btn = document.querySelector("#btnSave");
+
+	btn.addEventListener('click',function(){
+        var id = selSelector.value;
+        var countyName = listCounty[id];
+        SaveToCookie(selSelector.value, countyName);
+	},false);
+
+    selSelector.onchange = function(){
+        WorkID = selSelector.value;
+        WorkValue = listCounty[WorkID];
+        JudgeWork();
+    };
+
+    if(checkCookie) selSelector.selectedIndex = WorkID;
+};
+
+function getCookie(name) {
+  var arg = escape(name) + "=";
+  var nameLen = arg.length;
+  var cookieLen = document.cookie.length;
+  var i = 0;
+  while (i < cookieLen) {
+    var j = i + nameLen;
+    if (document.cookie.substring(i, j) == arg) return getCookieValueByIndex(j);
+    i = document.cookie.indexOf(" ", i) + 1;
+    if (i == 0) break;
+  }
+  return null;
+}
+
+function getCookieValueByIndex(startIndex) {
+  var endIndex = document.cookie.indexOf(";", startIndex);
+  if (endIndex == -1) endIndex = document.cookie.length;
+  return unescape(document.cookie.substring(startIndex, endIndex));
+}
+
+function SaveToCookie(id, str)
+{
+    // Var for cookie save
+    var strCookieID = "WorkId=" + id + "; expires=Tue, 19 Jan 2038 03:14:07 GMT";
+    var strCookieValue = "WorkValue=" + str + "; expires=Tue, 19 Jan 2038 03:14:07 GMT";
+    console.log('save\n' + strCookieID + '\n' + strCookieValue);
+    document.cookie = strCookieID;
+    document.cookie = strCookieValue;
+};
+
+function getWorkCookie()
+{
+    if(document.cookie.indexOf('WorkId=') != -1)
+    {
+        WorkID = getCookie('WorkId');
+        WorkValue = getCookie('WorkValue');
+        console.log("Found the save:[" + WorkID + "]" + WorkValue);
+        return true;
+    }
+    else
+    {
+        console.log("Save is not exist");
+        return false;
     }
 }
-setTimeout(function(){ location.reload(); }, 20*1000);
+
+function JudgeWork()
+{
+    var onDuty = true;
+    var res;
+
+    // Select node
+    selNode = FindObjByKeyword('tr', WorkValue);
+
+    // Judge
+    if(selNode != null){
+        selMessage = selNode.cells[selNode.cells.length-1].innerText;
+
+        // Judge the status
+        if(selMessage.match('停止'))
+        {
+            res = selMessage.match('(今|明)');
+            if (selMessage.match('(今|明)'))
+            {
+                onDuty = false;
+            }
+        }
+    }
+
+    // Output Message
+    if (onDuty)
+    {
+        warning_prompt(WorkValue + " 請乖乖上班, 上課");
+    }
+    else
+    {
+        if (selMessage.match('[:]'))
+        {
+            success_prompt(WorkValue + res[0] + "天部分放假");
+        }
+        else
+        {
+            success_prompt(WorkValue + res[0] + "天全部放假");
+        }
+    }
+}
+
+function showCountDown()
+{
+    var selDiv = document.querySelector("#divCountDown");
+
+    if (selDiv != null)
+    {
+        selDiv.innerText = "倒數: " + nTime.toString() + "秒後重新整理";
+    }
+    if (nTime == 0)
+    {
+        location.reload();
+    }
+    else
+    {
+        nTime = nTime - 1;
+    }
+}
+
+function Processing(){
+    // Main function
+    addList(genCountyList(), getWorkCookie());
+
+    selTable = document.querySelector("#Table");
+
+    if(selTable != null){
+        // Inital
+        selRows = selTable.rows;
+
+        // Find the county
+        JudgeWork();
+    }
+    else
+    {
+        console.log("table not found");
+    }
+
+    // Auto reload in 60 second
+    setInterval(function(){showCountDown();}, 1000);
+}
+
+window.addEventListener('load', (event) => {
+    Processing();
+});
