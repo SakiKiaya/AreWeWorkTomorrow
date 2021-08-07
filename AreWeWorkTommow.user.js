@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Work
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Check the status, and auto reload in 20 second
 // @author       SakiKiaya
 // @match        http*://www.dgpa.gov.tw/typh/daily/nds.html*
@@ -9,8 +9,11 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js
 // ==/UserScript==
 
-var nReloadTime = 60;
+//Var for Reload
+var objInterval;
+var nReloadTime = 20;
 var nTime = nReloadTime;
+var bReloadEnable = true;
 
 // Var for Select
 var selTable;
@@ -42,12 +45,13 @@ function AddCSS()
     .alert-warning {color: #8a6d3b;background-color: #fcf8e3;border-color: #faebcc;}
     .btn-success:hover {color: #fff;background-color: #157347;border-color: #146c43;}
 
+    .mar {margin:.25rem 0rem .25rem .25rem}
     .btn {display: inline-block;font-weight: 400;line-height: 1.5;color: #212529;text-align: center;text-decoration: none;vertical-align: middle;cursor: pointer;-webkit-user-select: none;-moz-user-select: none;user-select: none;background-color: transparent;border: 1px solid transparent;padding: .375rem .75rem;font-size: 1rem;border-radius: .25rem;transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;}
     .btn:hover {color: #212529;}
     .btn-success {color: #fff;background-color: #198754;border-color: #198754;}
     .btn-success:hover {color: #fff;background-color: #157347;border-color: #146c43;}
 
-    .form-select {display: inline-block;padding: .375rem 2.25rem .375rem .75rem;-moz-padding-start: calc(0.75rem - 3px);font-size: 1rem;font-weight: 400;line-height: 1.5;color: #212529;background-color: #fff;background-image: url(data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e);background-repeat: no-repeat;background-position: right .75rem center;background-size: 16px 12px;border: 1px solid #ced4da;border-radius: .25rem;transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;-webkit-appearance: none;-moz-appearance: none;appearance: none;}
+    .form-select {display: inline-block;vertical-align: middle;padding: .375rem 2.25rem .375rem .75rem;-moz-padding-start: calc(0.75rem - 3px);font-size: 1rem;font-weight: 400;line-height: 1.5;color: #212529;background-color: #fff;background-image: url(data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e);background-repeat: no-repeat;background-position: right .75rem center;background-size: 16px 12px;border: 1px solid #ced4da;border-radius: .25rem;transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;-webkit-appearance: none;-moz-appearance: none;appearance: none;}
     .form-select-sm {padding-top: .25rem;padding-bottom: .25rem;padding-left: .5rem;font-size: .875rem;}
     `;
 
@@ -90,7 +94,7 @@ var prompt = async function(message, style, time)
     time = (time === undefined) ? 1200 : time;
 
     // Select alert Div
-    objMainDiv = document.querySelector("#short_url_alert");
+    objMainDiv = document.querySelector("#judge_work_alert");
 
     // Setting Message
     objMainDiv.innerHTML = message;
@@ -188,37 +192,44 @@ var getCountyList = function(selTable)
 function addList(str, checkCookie)
 {
     var selDiv = document.querySelector('#Content');
-
+    var selContents;
     AddCSS();
 
     // Add alert Div
-    if (document.querySelector("#short_url_alert") == null)
+    if (document.querySelector("#judge_work_alert") == null)
     {
         selDiv.insertAdjacentHTML('afterbegin', '<div id="short_url_alert" class="alert alert-success"></div>');
     }
 
+    if (document.querySelector('#judge_work_contents') == null)
+    {
+        selDiv.insertAdjacentHTML('afterbegin', '<div id="judge_work_contents"></div>');
+    }
+    selContents = document.querySelector('#judge_work_contents');
+
     // Add button
     if (document.querySelector("#btnSave") == null)
     {
-        selDiv.insertAdjacentHTML('afterbegin', '<button name="btnSave" id ="btnSave" class="btn btn-success" "> 設定所在地區 </button></br>'); //style="position:absolute;left:74px;
+        selContents.insertAdjacentHTML('afterbegin', '<button name="btnSave" id ="btnSave" class="mar btn btn-success" "> 設定所在地區 </button></br>'); //style="position:absolute;left:74px;
     }
 
     // Add Selector
     if (document.querySelector("#SelectCounty") == null)
     {
-        selDiv.insertAdjacentHTML('afterbegin', '<select name="SelectCounty" id ="SelectCounty" class="form-select">' + str +'</select>'); //style="position:absolute;left:4px;">
+        selContents.insertAdjacentHTML('afterbegin', '<select name="SelectCounty" id ="SelectCounty" class="mar form-select">' + str +'</select>'); //style="position:absolute;left:4px;">
 
     }
 
     // Add countdown Div
     if (document.querySelector("#divCountDown") == null)
     {
-        selDiv.insertAdjacentHTML('afterbegin', '<div id="divCountDown" class="alert-success">倒數: 秒後重新整理</div>');
+        selContents.insertAdjacentHTML('afterbegin', '<div id="divCountDown" class="alert-success">倒數: 秒後重新整理，點選文字可暫停倒數</div>');
     }
 
     var selSelector = document.querySelector('#SelectCounty');
     var btn = document.querySelector("#btnSave");
 
+    // Setting county click Event
 	btn.addEventListener('click',function(){
         var id = selSelector.value;
         var countyName = listCounty[id];
@@ -232,6 +243,12 @@ function addList(str, checkCookie)
     };
 
     if(checkCookie) selSelector.selectedIndex = WorkID;
+
+    // Pause reload click Event
+    btn = document.querySelector("#divCountDown");
+    btn.addEventListener('click',function(){
+        SwitchReloadInterval();
+	},false);
 };
 
 function getCookie(name) {
@@ -327,7 +344,7 @@ function showCountDown()
 
     if (selDiv != null)
     {
-        selDiv.innerText = "倒數: " + nTime.toString() + "秒後重新整理";
+        selDiv.innerText = "倒數: " + nTime.toString() + "秒後重新整理，點選文字可暫停倒數";
     }
     if (nTime == 0)
     {
@@ -336,6 +353,19 @@ function showCountDown()
     else
     {
         nTime = nTime - 1;
+    }
+}
+
+function SwitchReloadInterval()
+{
+    if (objInterval != null)
+    {
+        clearInterval(objInterval);
+        objInterval = null;
+    }
+    else
+    {
+        objInterval = setInterval(function(){showCountDown();}, 1000);
     }
 }
 
@@ -358,7 +388,7 @@ function Processing(){
     }
 
     // Auto reload in 60 second
-    setInterval(function(){showCountDown();}, 1000);
+    objInterval = setInterval(function(){showCountDown();}, 1000);
 }
 
 window.addEventListener('load', (event) => {
