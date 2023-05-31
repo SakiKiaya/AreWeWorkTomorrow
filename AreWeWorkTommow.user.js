@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Work
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Check the status, and auto reload in 20 second
 // @author       SakiKiaya
 // @match        http*://www.dgpa.gov.tw/typh/daily/nds.html*
@@ -42,7 +42,7 @@ function AddCSS()
     var styles = `
     .alert {display: none; position: fixed;top: 50%;left: 50%;min-width: 300px;max-width: 600px;transform: translate(-50%,-50%);z-index: 99999;font-size: 3rem;text-align: center;padding: 15px;border-radius: 3px;}
     .alert-success {color: #fff;background-color: #198754;border-color: #198754;}
-    .alert-warning {color: #8a6d3b;background-color: #fcf8e3;border-color: #faebcc;}
+    .alert-warning {color: #8a6d3b;background-color: #F5B85E;border-color: #faebcc;}
     .btn-success:hover {color: #fff;background-color: #157347;border-color: #146c43;}
 
     .mar {margin:.25rem 0rem .25rem .25rem}
@@ -198,7 +198,7 @@ function addList(str, checkCookie)
     // Add alert Div
     if (document.querySelector("#judge_work_alert") == null)
     {
-        selDiv.insertAdjacentHTML('afterbegin', '<div id="short_url_alert" class="alert alert-success"></div>');
+        selDiv.insertAdjacentHTML('afterbegin', '<div id="judge_work_alert" class="alert alert-success"></div>');
     }
 
     if (document.querySelector('#judge_work_contents') == null)
@@ -234,6 +234,7 @@ function addList(str, checkCookie)
         var id = selSelector.value;
         var countyName = listCounty[id];
         SaveToCookie(selSelector.value, countyName);
+        success_prompt("地區設定完成", 200);
 	},false);
 
     selSelector.onchange = function(){
@@ -309,6 +310,10 @@ function JudgeWork()
     if(selNode != null){
         selMessage = selNode.cells[selNode.cells.length-1].innerText;
 
+        // Highlight select node
+        selNode.cells[0].bgColor = "198754"
+
+        console.log("設定區域:" + WorkValue + "\n找到內容:" + selMessage);
         // Judge the status
         if(selMessage.match('停止'))
         {
@@ -362,6 +367,8 @@ function SwitchReloadInterval()
     {
         clearInterval(objInterval);
         objInterval = null;
+        var selDiv = document.querySelector("#divCountDown");
+        selDiv.innerText = "[暫停]" + selDiv.innerText
     }
     else
     {
