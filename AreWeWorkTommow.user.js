@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Work
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Check the status, and auto reload in 20 second
 // @author       SakiKiaya
 // @match        http*://www.dgpa.gov.tw/typh/daily/nds.html*
@@ -11,7 +11,7 @@
 
 //Var for Reload
 var objInterval;
-var nReloadTime = 20;
+var nReloadTime = 60;
 var nTime = nReloadTime;
 var bReloadEnable = true;
 
@@ -235,6 +235,7 @@ function addList(str, checkCookie)
         var countyName = listCounty[id];
         SaveToCookie(selSelector.value, countyName);
         success_prompt("地區設定完成", 200);
+        JudgeWork();
 	},false);
 
     selSelector.onchange = function(){
@@ -315,10 +316,11 @@ function JudgeWork()
 
         console.log("設定區域:" + WorkValue + "\n找到內容:" + selMessage);
         // Judge the status
+        //20230903 找到內容:今天未達停止上班及上課標準。
+        //20240723 找到內容:明天停止上班、停止上課。
         if(selMessage.match('停止'))
         {
-            res = selMessage.match('(今|明)');
-            if (selMessage.match('(今|明)'))
+            if (!selMessage.match('未'))
             {
                 onDuty = false;
             }
@@ -332,6 +334,7 @@ function JudgeWork()
     }
     else
     {
+        res = selMessage.match('(今|明)');
         if (selMessage.match('[:]'))
         {
             success_prompt(WorkValue + res[0] + "天部分放假");
