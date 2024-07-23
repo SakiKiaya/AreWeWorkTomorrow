@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Work
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
+// @grant        GM_notification
 // @description  Check the status, and auto reload in 20 second
 // @author       SakiKiaya
 // @match        http*://www.dgpa.gov.tw/typh/daily/nds.html*
@@ -14,6 +15,8 @@ var objInterval;
 var nReloadTime = 60;
 var nTime = nReloadTime;
 var bReloadEnable = true;
+var gOnDuty = true;
+var gNotifaction = false;
 
 // Var for Select
 var selTable;
@@ -47,7 +50,7 @@ function AddCSS()
 
     .mar {margin:.25rem 0rem .25rem .25rem}
     .btn {display: inline-block;font-weight: 400;line-height: 1.5;color: #212529;text-align: center;text-decoration: none;vertical-align: middle;cursor: pointer;-webkit-user-select: none;-moz-user-select: none;user-select: none;background-color: transparent;border: 1px solid transparent;padding: .375rem .75rem;font-size: 1rem;border-radius: .25rem;transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;}
-    .btn:hover {color: #212529;}
+    .btn:hover {background-color: rgba(177, 243, 72, 0.35)}
     .btn-success {color: #fff;background-color: #198754;border-color: #198754;}
     .btn-success:hover {color: #fff;background-color: #157347;border-color: #146c43;}
 
@@ -195,6 +198,8 @@ function addList(str, checkCookie)
     var selContents;
     AddCSS();
 
+    getNotificationCookie();
+
     // Add alert Div
     if (document.querySelector("#judge_work_alert") == null)
     {
@@ -210,20 +215,21 @@ function addList(str, checkCookie)
     // Add button
     if (document.querySelector("#btnSave") == null)
     {
-        selContents.insertAdjacentHTML('afterbegin', '<button name="btnSave" id ="btnSave" class="mar btn btn-success" "> 設定所在地區 </button></br>'); //style="position:absolute;left:74px;
+        selContents.insertAdjacentHTML('afterbegin',
+                                       '<button name="btnSave" id ="btnSave" class="mar btn btn-success" "> 設定所在地區 </button>' +
+                                       '<button name="btnNoNotifaction" id ="btnNoNotifaction" class="mar btn" "> ' + (gNotifaction? "[已啟用通知] 取消" : "[已取消通知] 點選此按鈕啟用")+'瀏覽器通知 </button></br>'); //style="position:absolute;left:74px;
     }
 
     // Add Selector
     if (document.querySelector("#SelectCounty") == null)
     {
         selContents.insertAdjacentHTML('afterbegin', '<select name="SelectCounty" id ="SelectCounty" class="mar form-select">' + str +'</select>'); //style="position:absolute;left:4px;">
-
     }
 
     // Add countdown Div
     if (document.querySelector("#divCountDown") == null)
     {
-        selContents.insertAdjacentHTML('afterbegin', '<div id="divCountDown" class="alert-success">倒數: 秒後重新整理，點選文字可暫停倒數</div>');
+        selContents.insertAdjacentHTML('afterbegin', '<div id="divCountDown" class="alert-success">倒數: 0秒後重新整理，點選文字可暫停倒數</div>');
     }
 
     var selSelector = document.querySelector('#SelectCounty');
@@ -233,15 +239,15 @@ function addList(str, checkCookie)
 	btn.addEventListener('click',function(){
         var id = selSelector.value;
         var countyName = listCounty[id];
-        SaveToCookie(selSelector.value, countyName);
+        SaveToCookie(selSelector.value, countyName, gNotifaction);
         success_prompt("地區設定完成", 200);
-        JudgeWork();
+        gOnDuty = JudgeWork();
 	},false);
 
     selSelector.onchange = function(){
         WorkID = selSelector.value;
         WorkValue = listCounty[WorkID];
-        JudgeWork();
+        gOnDuty = JudgeWork();
     };
 
     if(checkCookie) selSelector.selectedIndex = WorkID;
@@ -250,6 +256,17 @@ function addList(str, checkCookie)
     btn = document.querySelector("#divCountDown");
     btn.addEventListener('click',function(){
         SwitchReloadInterval();
+	},false);
+
+    // click Event for Notifaction
+    btn = document.querySelector("#btnNoNotifaction");
+    btn.addEventListener('click',function(){
+        var id = selSelector.value;
+        var countyName = listCounty[id];
+        getNotificationCookie();
+        gNotifaction = !gNotifaction;
+        SaveToCookie(-1, 'NA', gNotifaction);
+        btn.innerText = (gNotifaction? "[已啟用通知]" : "[已取消通知]");
 	},false);
 };
 
@@ -273,14 +290,25 @@ function getCookieValueByIndex(startIndex) {
   return unescape(document.cookie.substring(startIndex, endIndex));
 }
 
-function SaveToCookie(id, str)
+function SaveToCookie(id = -1, str = 'NA', bNotification = true)
 {
     // Var for cookie save
     var strCookieID = "WorkId=" + id + "; expires=Tue, 19 Jan 2038 03:14:07 GMT";
     var strCookieValue = "WorkValue=" + str + "; expires=Tue, 19 Jan 2038 03:14:07 GMT";
-    console.log('save\n' + strCookieID + '\n' + strCookieValue);
-    document.cookie = strCookieID;
-    document.cookie = strCookieValue;
+    var strCookieNotification = "bNotification=" + (gNotifaction ? 1: 0) + "; expires=Tue, 19 Jan 2038 03:14:07 GMT";
+    console.log('save\n');
+    if (id != -1)
+    {
+        console.log(strCookieID + '\n');
+        document.cookie = strCookieID;
+    }
+    if (str != 'NA')
+    {
+        console.log(strCookieValue + '\n');
+        document.cookie = strCookieValue;
+    }
+    document.cookie = strCookieNotification;
+    console.log(strCookieNotification + '\n');
 };
 
 function getWorkCookie()
@@ -290,6 +318,21 @@ function getWorkCookie()
         WorkID = getCookie('WorkId');
         WorkValue = getCookie('WorkValue');
         console.log("Found the save:[" + WorkID + "]" + WorkValue);
+        return true;
+    }
+    else
+    {
+        console.log("Save is not exist");
+        return false;
+    }
+}
+
+function getNotificationCookie()
+{
+    if(document.cookie.indexOf('bNotification=') != -1)
+    {
+        gNotifaction = getCookie('bNotification') == '1';
+        console.log("Found the save:" + gNotifaction);
         return true;
     }
     else
@@ -331,18 +374,29 @@ function JudgeWork()
     if (onDuty)
     {
         warning_prompt(WorkValue + " 請乖乖上班, 上課");
+        return true;
     }
     else
     {
         res = selMessage.match('(今|明)');
-        if (selMessage.match('[:]'))
+        var message = "";
+        message = WorkValue + res[0] + "天" + (selMessage.match('[:]') ? "部分" : "全部") + "放假";
+        success_prompt(message);
+
+        if (gNotifaction)
         {
-            success_prompt(WorkValue + res[0] + "天部分放假");
+            GM_notification({
+                text: message,
+                title: "天然災害停止上班及上課情形",
+                url: 'https://www.dgpa.gov.tw/typh/daily/nds.html',
+                onclick: (event) => {
+                    // The userscript is still running, so don't open example.com
+                    event.preventDefault();
+                    // Display an alert message instead
+                },
+            });
         }
-        else
-        {
-            success_prompt(WorkValue + res[0] + "天全部放假");
-        }
+        return false;
     }
 }
 
@@ -366,20 +420,24 @@ function showCountDown()
 
 function SwitchReloadInterval()
 {
-    if (objInterval != null)
+    if (gOnDuty)
     {
-        clearInterval(objInterval);
-        objInterval = null;
-        var selDiv = document.querySelector("#divCountDown");
-        selDiv.innerText = "[暫停]" + selDiv.innerText
-    }
-    else
-    {
-        objInterval = setInterval(function(){showCountDown();}, 1000);
+        if (objInterval != null)
+        {
+            clearInterval(objInterval);
+            objInterval = null;
+            var selDiv = document.querySelector("#divCountDown");
+            selDiv.innerText = "[暫停]" + selDiv.innerText
+        }
+        else
+        {
+            objInterval = setInterval(function(){showCountDown();}, 1000);
+        }
     }
 }
 
 function Processing(){
+    var onDuty = true;
     // Main function
     addList(genCountyList(), getWorkCookie());
 
@@ -390,7 +448,7 @@ function Processing(){
         selRows = selTable.rows;
 
         // Find the county
-        JudgeWork();
+        gOnDuty = JudgeWork();
     }
     else
     {
@@ -398,7 +456,15 @@ function Processing(){
     }
 
     // Auto reload in 60 second
-    objInterval = setInterval(function(){showCountDown();}, 1000);
+    if (gOnDuty)
+    {
+        objInterval = setInterval(function(){showCountDown();}, 1000);
+    }
+    else
+    {
+        var selDiv = document.querySelector("#divCountDown");
+        selDiv.innerText = "[已停止重新整哩]"
+    }
 }
 
 window.addEventListener('load', (event) => {
